@@ -7,7 +7,7 @@ module.exports = (app) => {
   /**
    * Database sync
    */
-  sequelize.sync({ force: false });
+  sequelize.sync({ force: false });  //true 상태면 X, 그대로 실행시키면 테이블 리셋됨
   /**
    * Health Check endpoints
    * @TODO Explain why they are here
