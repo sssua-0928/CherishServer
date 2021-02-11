@@ -344,7 +344,6 @@ module.exports = {
       });
     }
     const id = req.params.id; //userId
-
     try {
       const cherishes = await Cherish.findAll({
         include: [{
