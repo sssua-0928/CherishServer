@@ -1,7 +1,9 @@
 const express = require('express');
 const api = require('../apis/routes');
 const errorHandler = require('./error');
-const { sequelize } = require('../models');
+const {
+  sequelize
+} = require('../models');
 const logger = require('../config/winston');
 
 module.exports = (app) => {

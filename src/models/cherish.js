@@ -1,9 +1,10 @@
-const { Sequelize } = require('sequelize');
+const {
+  Sequelize
+} = require('sequelize');
 
 module.exports = (sequelize, DataTypes) => {
   return sequelize.define(
-    'Cherish',
-    {
+    'Cherish', {
       name: {
         type: DataTypes.STRING(45),
         allowNull: false,
@@ -15,6 +16,7 @@ module.exports = (sequelize, DataTypes) => {
       birth: {
         type: DataTypes.DATE,
         allowNull: false,
+        defaultValue: 0000 - 00 - 00,
       },
       phone: {
         type: DataTypes.STRING(45),
@@ -57,8 +59,7 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: false,
         defaultValue: true,
       },
-    },
-    {
+    }, {
       timestamps: true,
       tableName: 'cherish',
     }
