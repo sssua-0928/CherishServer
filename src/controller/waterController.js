@@ -1,15 +1,15 @@
 const { validationResult } = require('express-validator');
 const dayjs = require('dayjs');
 
-const { Cherish, Water, User, sequelize } = require('../models');
+const { Cherish, Water } = require('../models');
 
 const ut = require('../modules/util');
 const sc = require('../modules/statusCode');
 const rm = require('../modules/responseMessage');
 
-const { NULL_VALUE } = require('../modules/responseMessage');
-
 const waterService = require('../service/waterService');
+const { pushService } = require('../service');
+
 const logger = require('../config/winston');
 
 module.exports = {
@@ -36,7 +36,8 @@ module.exports = {
         return res.status(sc.BAD_REQUEST).send(ut.fail(rm.NULL_VALUE));
       }
 
-      let score = 0;
+      let score = 1;
+
       if (keyword1) {
         score += 1;
       }
@@ -58,15 +59,17 @@ module.exports = {
 
       // Cherish에서 growth 받아오기
       const cherishGrowth = await Cherish.findOne({
-        attributes: ['growth', 'cycle_date'],
+        attributes: ['UserId', 'growth', 'cycle_date'],
         where: {
           id: CherishId,
         },
       });
       let growth = cherishGrowth.dataValues.growth;
+      const UserId = cherishGrowth.dataValues.UserId;
       if (score != 0) {
         growth += score;
       }
+
       const date = dayjs()
         .add(parseInt(cherishGrowth.dataValues.cycle_date), 'day')
         .format('YYYY-MM-DD');
@@ -82,7 +85,7 @@ module.exports = {
           },
         }
       );
-
+      pushService.updatePushREV({ UserId, CherishId });
       return res.status(sc.OK).send(ut.success(rm.OK, score));
     } catch (err) {
       console.log(err);

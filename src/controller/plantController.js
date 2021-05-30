@@ -1,28 +1,14 @@
-const {
-  validationResult
-} = require('express-validator');
+const { validationResult } = require('express-validator');
 const dayjs = require('dayjs');
 
-const {
-  Cherish,
-  Plant,
-  Water,
-  Plant_level,
-  Status_message
-} = require('../models');
+const { Cherish, Plant, Water, Plant_level, Status_message } = require('../models');
 const ut = require('../modules/util');
 const sc = require('../modules/statusCode');
 const rm = require('../modules/responseMessage');
 
-const {
-  cherishService,
-  plantService,
-  pushService
-} = require('../service');
+const { cherishService, plantService, pushService } = require('../service');
 
-const {
-  getPlantModifier
-} = require('../service/plantService');
+const { getPlantModifier, getPlantId } = require('../service/plantService');
 const cherish = require('../models/cherish');
 const plant = require('../models/plant');
 const logger = require('../config/winston');
@@ -32,6 +18,7 @@ module.exports = {
    * body: name, nickname, birth, phone, cycle_date, notice_time
    */
   createPlant: async (req, res) => {
+    /*
     logger.info('POST /cherish');
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -41,6 +28,7 @@ module.exports = {
         message: errors.array(),
       });
     }
+    */
     const {
       name,
       nickname,
@@ -54,8 +42,9 @@ module.exports = {
     try {
       const isCheckPhoneDuplicate = await Cherish.findOne({
         where: {
-          UserId,
           phone,
+          UserId,
+          status_code: 1,
         },
       });
       if (isCheckPhoneDuplicate) {
@@ -79,24 +68,18 @@ module.exports = {
           'flower_meaning',
           'thumbnail_image_url',
           'PlantStatusId',
+          'gif',
+          'image',
         ],
         where: {
           PlantStatusId: PlantStatusId(cycle_date),
         },
       });
 
-      const plantImageURL = await Plant_level.findOne({
-        attributes: ['image_url'],
-        where: {
-          PlantId: plant.dataValues.id,
-          level: 2,
-        },
-      });
-
-      plant.dataValues.image_url = plantImageURL.dataValues.image_url;
+      plant.dataValues.image_url = plant.dataValues.gif;
 
       //현재 날짜에 cycle_date 더해서 water_date 구하기
-      const now_date = dayjs().format('YYYY-MM-DD hh:mm:ss');
+      const now_date = dayjs().format('YYYY-MM-DD');
       const water_date = dayjs(now_date).add(cycle_date, 'day').format('YYYY-MM-DD');
 
       const cherish = await Cherish.create({
@@ -110,6 +93,7 @@ module.exports = {
         PlantId: plant.dataValues.id,
         UserId,
         water_notice,
+        start_date: now_date,
       });
 
       await pushService.createPushCOM({
@@ -153,13 +137,16 @@ module.exports = {
         return res.status(sc.BAD_REQUEST).send(ut.fail(rm.OUT_OF_VALUE));
       }
 
-      await Cherish.update({
-        status_code: false,
-      }, {
-        where: {
-          id: CherishId,
+      await Cherish.update(
+        {
+          status_code: false,
         },
-      });
+        {
+          where: {
+            id: CherishId,
+          },
+        }
+      );
 
       return res.status(sc.OK).send(ut.success(rm.OK));
     } catch (err) {
@@ -183,13 +170,7 @@ module.exports = {
       });
     }
     const CherishId = req.body.id;
-    const {
-      nickname,
-      birth,
-      cycle_date,
-      notice_time,
-      water_notice
-    } = req.body;
+    const { nickname, birth, cycle_date, notice_time, water_notice } = req.body;
 
     try {
       const alreadyCherish = await cherishService.cherishCheck({
@@ -199,17 +180,28 @@ module.exports = {
         logger.error(`PUT /cherish - cherishCheck Error`);
         return res.status(sc.BAD_REQUEST).send(ut.fail(rm.OUT_OF_VALUE));
       }
-      await Cherish.update({
-        nickname: nickname,
-        birth: birth,
-        cycle_date: cycle_date,
-        notice_time: notice_time,
-        water_notice: water_notice,
-      }, {
-        where: {
-          id: CherishId,
-        },
+      const newPlantId = await plantService.getPlantId({
+        cycle_date,
       });
+      const now_date = dayjs().format('YYYY-MM-DD');
+      const water_date = dayjs(now_date).add(cycle_date, 'day').format('YYYY-MM-DD');
+
+      await Cherish.update(
+        {
+          nickname: nickname,
+          birth: birth,
+          cycle_date: cycle_date,
+          notice_time: notice_time,
+          water_notice: water_notice,
+          PlantId: newPlantId,
+          water_date: water_date,
+        },
+        {
+          where: {
+            id: CherishId,
+          },
+        }
+      );
       return res.status(sc.OK).send(ut.success(rm.OK));
     } catch (err) {
       console.log(err);
@@ -229,9 +221,7 @@ module.exports = {
         message: errors.array(),
       });
     }
-    const {
-      CherishId
-    } = req.query;
+    const { CherishId } = req.query;
     try {
       const cherish = await Cherish.findOne({
         attributes: ['name', 'nickname', 'phone', 'birth', 'PlantId', 'start_date', 'water_date'],
@@ -254,8 +244,9 @@ module.exports = {
        * start_date로 경과일(duration) 구하기
        */
       const start_date = dayjs(cherish.start_date);
-      const now_date = dayjs();
-      result.duration = now_date.diff(start_date, 'day');
+      const now_date_format = dayjs().format('YYYY-MM-DD 09:00:00');
+      const now_date = dayjs(now_date_format);
+      result.duration = now_date.diff(start_date, 'day') + 1;
 
       /**
        * water_date로 디데이(dDay) 구하기
@@ -300,9 +291,7 @@ module.exports = {
         where: {
           CherishId: CherishId,
         },
-        order: [
-          ['id', 'DESC']
-        ],
+        order: [['id', 'DESC']],
       });
 
       result.reviews = [];
@@ -346,9 +335,11 @@ module.exports = {
     const id = req.params.id; //userId
     try {
       const cherishes = await Cherish.findAll({
-        include: [{
-          model: Plant,
-        }, ],
+        include: [
+          {
+            model: Plant,
+          },
+        ],
         where: {
           UserId: id,
           status_code: 1,
@@ -371,15 +362,24 @@ module.exports = {
         const PlantId = item.PlantId;
         obj.id = item.id;
         const water_date = dayjs(item.water_date);
-        obj.dDay = water_date.diff(dayjs(), 'day');
+        const now_date_format = dayjs().format('YYYY-MM-DD 09:00:00');
+        const now_date = dayjs(now_date_format);
+        obj.dDay = water_date.diff(now_date, 'day');
         obj.nickname = item.nickname;
         obj.phone = item.phone;
-        obj.growth = parseInt((parseFloat(item.growth) / 12.0) * 100);
+        const grow = parseInt((parseFloat(item.growth) / 12.0) * 100);
+        if (grow >= 100) {
+          obj.growth = 100;
+        } 
+        else {
+          obj.growth = grow;
+        }
+        //obj.growth = parseInt((parseFloat(item.growth) / 12.0) * 100);
         obj.image_url = plant_map.get(`${PlantId},${level}`);
         obj.thumbnail_image_url =
-          item && item.Plant && item.Plant.thumbnail_image_url ?
-          item.Plant.thumbnail_image_url :
-          '썸네일없음';
+          item && item.Plant && item.Plant.thumbnail_image_url
+            ? item.Plant.thumbnail_image_url
+            : '썸네일없음';
 
         //식물 이름 가져오기
         const plantId = await Cherish.findOne({
@@ -415,8 +415,13 @@ module.exports = {
         result.push(obj);
       }
       result.sort((a, b) => {
-        return a.dDay - b.dDay;
+        let result = a.dDay - b.dDay;
+        if (result === 0) {
+          result = a.growth - b.growth;
+        }
+        return result;
       });
+
       return res.status(sc.OK).send(
         ut.success(rm.READ_ALL_CHERISH_SUCCESS, {
           result,
@@ -439,15 +444,13 @@ module.exports = {
         message: errors.array(),
       });
     }
-    const {
-      phone,
-      UserId
-    } = req.body;
+    const { phone, UserId } = req.body;
     try {
       const isCheckPhoneDuplicate = await Cherish.findOne({
         where: {
           UserId,
           phone,
+          status_code: 1,
         },
       });
       if (isCheckPhoneDuplicate) {

@@ -1,5 +1,5 @@
 const dayjs = require('dayjs');
-const { App_push_user, Cherish } = require('../models');
+const { App_push_user, Cherish, sequelize } = require('../models');
 const ut = require('../modules/util');
 const sc = require('../modules/statusCode');
 const rm = require('../modules/responseMessage');
@@ -19,27 +19,29 @@ module.exports = {
       });
     }
 
-    const { send_code } = req.params;
-
+    const { send_code, notice_time } = req.params;
+    console.log(send_code, notice_time);
+    const query = `SELECT APU.mobile_device_token,
+                          C.nickname,
+                          DATE_FORMAT(APU.push_date,'%Y-%m-%d') AS push_date,
+                          APU.CherishId,
+                          APU.UserId
+                   FROM cherish C
+                      INNER JOIN app_push_user APU ON C.id=APU.CherishId
+                   WHERE APU.send_yn='N'
+                     AND APU.send_code='${send_code}'
+                     AND C.notice_time='${notice_time}'
+                     AND C.water_notice='1'`;
     try {
-      const pushUser = await App_push_user.findAll({
-        where: {
-          send_code: send_code,
-          send_yn: 'N',
-        },
-        attributes: [
-          'send_code',
-          'push_date',
-          'mobile_os_type',
-          'mobile_device_token',
-          'send_yn',
-          'title',
-          'message',
-          'CherishId',
-          'UserId',
-        ],
+      const [results] = await sequelize.query(query);
+      let date = new Date();
+      const today = dayjs(date.toLocaleString('en', { timeZone: 'Asia/Seoul' })).format(
+        'YYYY-MM-DD'
+      );
+      const push_list = results.filter((result) => {
+        return result.push_date === today;
       });
-      return res.status(sc.OK).send(ut.success(rm.GET_PUSH_USER_SUCCESS, pushUser));
+      return res.status(sc.OK).send(ut.success(rm.GET_PUSH_USER_SUCCESS, push_list));
     } catch (err) {
       console.log(err);
       logger.error(`GET /push - Server Error - getPushUser`);
@@ -177,6 +179,28 @@ module.exports = {
       console.log(err);
       logger.error(`PUT /pushReview - Server Error - updateSendYN_REV`);
       return res.status(sc.INTERNAL_SERVER_ERROR).send(ut.fail(rm.UPDATE_Y_N_FAIL));
+    }
+  },
+  updateToken: async (req, res) => {
+    logger.info(`PUT /push/token - updateToken`);
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      logger.error(`PUT /push/token - Paramaters Error - updateToken`);
+      return res.status(400).json({
+        success: false,
+        message: errors.array(),
+      });
+    }
+    const { UserId } = req.body;
+    try {
+      await pushService.updatePushFcmToken({
+        UserId,
+      });
+      return res.status(sc.OK).send(ut.success(rm.UPDATE_PUSH_TOKEN_SUCCESS));
+    } catch (err) {
+      console.log(err);
+      logger.error(`PUT /push/token - Server Error - updateToken`);
+      return res.status(sc.INTERNAL_SERVER_ERROR).send(ut.fail(rm.UPDATE_PUSH_TOKEN_FAIL));
     }
   },
 };
