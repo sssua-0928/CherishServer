@@ -1,11 +1,16 @@
 const bcrypt = require('bcryptjs');
 const request = require('request');
 const crypto = require('crypto');
-const { User, user_log } = require('../models');
+const {
+  User,
+  user_log
+} = require('../models');
 const secretKey = require('../config');
 
 module.exports = {
-  emailCheck: async ({ email }) => {
+  emailCheck: async ({
+    email
+  }) => {
     try {
       const alreadyEmail = await User.findOne({
         where: {
@@ -20,7 +25,10 @@ module.exports = {
     }
   },
 
-  signin: async ({ email, password }) => {
+  signin: async ({
+    email,
+    password
+  }) => {
     try {
       const user = await User.findOne({
         where: {
@@ -39,19 +47,19 @@ module.exports = {
     }
   },
 
-  updatePassword: async ({ email, password1 }) => {
+  updatePassword: async ({
+    email,
+    password1
+  }) => {
     try {
-      await User.update(
-        {
-          password: password1,
+      await User.update({
+        password: password1,
+      }, {
+        where: {
+          email,
+          active: 'Y',
         },
-        {
-          where: {
-            email,
-            active: 'Y',
-          },
-        }
-      );
+      });
       return true;
     } catch (err) {
       console.log(err);
@@ -83,7 +91,9 @@ module.exports = {
    * @param 핸드폰 번호
    * @return 인증번호(6자리)
    */
-  sendNumber: async ({ phone }) => {
+  sendNumber: async ({
+    phone
+  }) => {
     const NCP_accessKey = secretKey.NCP_API_ACCESS_KEY;
     const NCP_secretKey = secretKey.NCP_API_SECRET_KEY;
     const NCP_serviceID = secretKey.SENS_SERVICE_ID;
@@ -107,8 +117,7 @@ module.exports = {
     const signature = hmac.update(message.join('')).digest('base64');
     const verifyCode = Math.floor(Math.random() * (9999 - 1000)) + 1000;
     try {
-      request(
-        {
+      request({
           method: method,
           json: true,
           uri: url,
@@ -125,11 +134,9 @@ module.exports = {
             subject: '인증 알림',
             from: myPhoneNumber,
             content: `체리쉬 인증번호 ${verifyCode}입니다.`,
-            messages: [
-              {
-                to: phone,
-              },
-            ],
+            messages: [{
+              to: phone,
+            }, ],
           },
         },
         function (err, res, html) {
@@ -143,18 +150,15 @@ module.exports = {
       return 0;
     }
   },
-  deleteUser: async ({ id }) => {
+  deleteUser: async (id) => {
     try {
-      await User.update(
-        {
-          active: 'N',
+      await User.update({
+        active: 'N',
+      }, {
+        where: {
+          id,
         },
-        {
-          where: {
-            id,
-          },
-        }
-      );
+      });
 
       const user = await User.findOne({
         where: {
@@ -162,16 +166,17 @@ module.exports = {
           active: 'N',
         },
       });
+      // Delete상태의 user_log 남기기
       await user_log.create({
         user_id: user.id,
-        name: user.name,
+        //name: user.name,
         email: user.email,
         password: user.password,
         salt: user.salt,
         nickname: user.nickname,
         phone: user.phone,
-        sex: user.sex,
-        birth: user.birth,
+        //sex: user.sex,
+        //birth: user.birth,
         profile_image_url: user.profile_image_url,
         postpone_count: user.postpone_count,
         fcm_token: user.fcm_token,

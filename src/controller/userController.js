@@ -1,11 +1,22 @@
-const { validationResult } = require('express-validator');
+const {
+  validationResult
+} = require('express-validator');
 const dayjs = require('dayjs');
 
-const { Cherish, Plant, Water, Plant_level, User, App_push_user } = require('../models');
+const {
+  Cherish,
+  Plant,
+  Water,
+  Plant_level,
+  User,
+  App_push_user
+} = require('../models');
 const ut = require('../modules/util');
 const sc = require('../modules/statusCode');
 const rm = require('../modules/responseMessage');
-const { plantService } = require('../service');
+const {
+  plantService
+} = require('../service');
 const logger = require('../config/winston');
 const userService = require('../service/userService');
 
@@ -20,7 +31,9 @@ module.exports = {
         message: errors.array(),
       });
     }
-    const { id } = req.params;
+    const {
+      id
+    } = req.params;
     try {
       const user = await User.findOne({
         attributes: ['nickname', 'postpone_count', 'email'], // postpone_count
@@ -38,16 +51,12 @@ module.exports = {
           UserId: id,
           active: 'Y',
         },
-        include: [
-          {
-            model: Plant,
-            include: [
-              {
-                model: Plant_level,
-              },
-            ],
-          },
-        ],
+        include: [{
+          model: Plant,
+          include: [{
+            model: Plant_level,
+          }, ],
+        }, ],
         attributes: ['id', 'nickname', 'growth', 'water_date', 'PlantId', 'phone'],
       });
       const result = [];
@@ -65,9 +74,9 @@ module.exports = {
         obj.name =
           cherish && cherish.Plant && cherish.Plant.name ? cherish.Plant.name : '이름 없음';
         obj.thumbnail_image_url =
-          cherish && cherish.Plant && cherish.Plant.thumbnail_image_url
-            ? cherish.Plant.thumbnail_image_url
-            : '썸네일 없음';
+          cherish && cherish.Plant && cherish.Plant.thumbnail_image_url ?
+          cherish.Plant.thumbnail_image_url :
+          '썸네일 없음';
         obj.level = level;
         obj.PlantId = cherish.PlantId;
         obj.phone = cherish.phone;
@@ -123,31 +132,28 @@ module.exports = {
         message: errors.array(),
       });
     }
-    const { id, fcm_token } = req.body;
+    const {
+      id,
+      fcm_token
+    } = req.body;
     try {
-      await User.update(
-        {
-          fcm_token,
+      await User.update({
+        fcm_token,
+      }, {
+        where: {
+          id,
+          active: 'Y',
         },
-        {
-          where: {
-            id,
-            active: 'Y',
-          },
-        }
-      );
-      await App_push_user.update(
-        {
-          mobile_device_token: fcm_token,
+      });
+      await App_push_user.update({
+        mobile_device_token: fcm_token,
+      }, {
+        where: {
+          UserId: id,
+          send_yn: 'N',
+          active: 'Y',
         },
-        {
-          where: {
-            UserId: id,
-            send_yn: 'N',
-            active: 'Y',
-          },
-        }
-      );
+      });
       return res.status(sc.OK).send(ut.success(rm.UPDATE_TOKEN_SUCCESS));
     } catch (err) {
       console.log(err);
@@ -165,9 +171,12 @@ module.exports = {
         message: errors.array(),
       });
     }
-    const { id } = req.body;
+    const {
+      id
+    } = req.body;
+    console.log(id);
     try {
-      await userService.deleteUser({ id });
+      await userService.deleteUser(id);
       return res.status(sc.OK).send(ut.success(rm.DELETE_USER_SUCCESS));
     } catch (err) {
       console.log(err);
