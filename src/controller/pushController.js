@@ -20,7 +20,6 @@ module.exports = {
     }
 
     const { send_code, notice_time } = req.params;
-    console.log(send_code, notice_time);
     const query = `SELECT APU.mobile_device_token,
                           C.nickname,
                           DATE_FORMAT(APU.push_date,'%Y-%m-%d') AS push_date,
@@ -31,6 +30,8 @@ module.exports = {
                    WHERE APU.send_yn='N'
                      AND APU.send_code='${send_code}'
                      AND C.notice_time='${notice_time}'
+                     AND APU.active='Y'
+                     AND C.active='Y'
                      AND C.water_notice='1'`;
     try {
       const [results] = await sequelize.query(query);
@@ -63,7 +64,7 @@ module.exports = {
     const now_date = dayjs();
     const cherish = await Cherish.findOne({
       attributes: ['UserId', 'cycle_date'],
-      where: { id: CherishId },
+      where: { id: CherishId, active: 'Y' },
     });
     const water_date = dayjs(now_date)
       .add(cherish.dataValues.cycle_date, 'day')
@@ -96,9 +97,8 @@ module.exports = {
     const push_date = dayjs().format('YYYY-MM-DD');
     const cherish = await Cherish.findOne({
       attributes: ['UserId'],
-      where: { id: CherishId },
+      where: { id: CherishId, active: 'Y' },
     });
-    console.log(push_date);
 
     try {
       await pushService.createPushREV({
@@ -130,12 +130,14 @@ module.exports = {
       await App_push_user.update(
         {
           send_yn: 'Y',
+          updatedAt: sequelize.fn('NOW'),
         },
         {
           where: {
             CherishId: CherishId,
             send_yn: 'N',
             send_code: 'COM',
+            active: 'Y',
           },
         }
       );
@@ -164,12 +166,14 @@ module.exports = {
       await App_push_user.update(
         {
           send_yn: 'Y',
+          updatedAt: sequelize.fn('NOW'),
         },
         {
           where: {
             CherishId: CherishId,
             send_yn: 'N',
             send_code: 'REV',
+            active: 'Y',
           },
         }
       );
@@ -201,6 +205,43 @@ module.exports = {
       console.log(err);
       logger.error(`PUT /push/token - Server Error - updateToken`);
       return res.status(sc.INTERNAL_SERVER_ERROR).send(ut.fail(rm.UPDATE_PUSH_TOKEN_FAIL));
+    }
+  },
+  insertAppPushUserByCherishIdAndUserId: async (req, res) => {
+    logger.info(`POST /push/insert - insertAppPushUserByCherishIdAndUserId`);
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      logger.error(`POST /push/insert - Parameters Error - insertAppPushUserByCherishIdAndUserId`);
+      return res.status(400).json({
+        success: false,
+        message: errors.array(),
+      });
+    }
+    const { CherishId } = req.body;
+    const now_date = dayjs();
+    const cherish = await Cherish.findOne({
+      attributes: ['UserId', 'cycle_date'],
+      where: { id: CherishId, active: 'Y' },
+    });
+    const water_date = dayjs(now_date)
+      .add(cherish.dataValues.cycle_date, 'day')
+      .format('YYYY-MM-DD');
+
+    try {
+      await pushService.createPushCOM({
+        UserId: cherish.dataValues.UserId,
+        CherishId: CherishId,
+        water_date,
+      });
+      await pushService.createPushREV({
+        UserId: cherish.dataValues.UserId,
+        CherishId: CherishId,
+        push_date: water_date,
+      });
+      return res.status(sc.OK).send(ut.success(rm.UPDATE_PUSH_USER_SUCCESS));
+    } catch (err) {
+      console.log(err);
+      return res.status(sc.INTERNAL_SERVER_ERROR).send(ut.fail(rm.UPDATE_PUSH_USER_FAIL));
     }
   },
 };

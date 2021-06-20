@@ -1,7 +1,9 @@
 module.exports = (sequelize, DataTypes) => {
   return sequelize.define(
-    'User',
-    {
+    'user_log', {
+      user_id: {
+        type: DataTypes.INTEGER,
+      },
       name: {
         type: DataTypes.STRING(45),
         allowNull: true,
@@ -41,10 +43,17 @@ module.exports = (sequelize, DataTypes) => {
         defaultValue: 'Y',
         allowNull: false,
       },
-    },
-    {
-      timestamps: true,
-      tableName: 'user',
+      status: {
+        type: DataTypes.STRING(20),
+        allowNull: false,
+      },
+      service_name: {
+        type: DataTypes.STRING(100),
+        allowNull: false,
+      },
+    }, {
+      //timestamps: true,
+      tableName: 'user_log',
     }
   );
 };
